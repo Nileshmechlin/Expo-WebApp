@@ -1,23 +1,44 @@
+# Node.js
 node_modules/
+
+# Expo
 .expo/
+web-build/
 dist/
-npm-debug.*
+
+# Debug logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# macOS system file
+.DS_Store
+
+# Android & iOS native directories
+android/
+ios/
+
+# Environment variables - ALL environment files should be ignored
+.env
+.env.local
+.env.development
+.env.production
+.env.staging
+.env.test
+.env.*.local
+
+# Keystore and credentials (VERY IMPORTANT)
 *.jks
 *.p8
 *.p12
 *.key
 *.mobileprovision
-*.orig.*
-web-build/
 
-
-
-
-ios
-android
-
-# macOS
-.DS_Store
-
-# Temporary files created by Metro to check the health of the file watcher
+# Metro bundler temp files
 .metro-health-check*
+
+# Original/merge conflict files
+*.orig.*
+
+# VSCode (optional)
+.vscode/

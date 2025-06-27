@@ -9,10 +9,16 @@ export const RootNavigator = () => {
   const { user, isLoadingUser, fetchUser } = useAuth();
 
   useEffect(() => {
+    console.log('🔄 RootNavigator: Fetching user on mount');
     fetchUser();
   }, []);
 
+  useEffect(() => {
+    console.log('👤 RootNavigator: User state changed:', user ? 'User logged in' : 'No user');
+  }, [user]);
+
   if (isLoadingUser) {
+    console.log('⏳ RootNavigator: Showing loading screen');
     return (
       <View className="flex-1 justify-center items-center bg-white">
         <ActivityIndicator size="large" color="black" />
@@ -20,6 +26,7 @@ export const RootNavigator = () => {
     );
   }
 
+  console.log('🎯 RootNavigator: Rendering navigator, user:', !!user);
   return (
     <NavigationContainer>
       {user ? <AppNavigator /> : <AuthNavigator />}

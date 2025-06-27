@@ -1,116 +1,152 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, TouchableOpacity, FlatList, Button, Alert, TextInput, Modal } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
-import { account, databases, ID, Permission, Role } from '../../api/appwrite';
-import { Ionicons } from '@expo/vector-icons';
+import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
+import { View, Text, Alert } from 'react-native';
+import { useContacts } from '../../hooks/useContact';
+import { useContactSearch } from '../../hooks/useContactSearch';
+import { useAuthStore } from '../../state/authStore';
+import { User } from '../../types/contact';
+import { SearchBar, ContactsTable, SearchResults } from '../../components';
 
-const DATABASE_ID = process.env.EXPO_PUBLIC_APPWRITE_DATABASE_ID!;
-const CONTACTS_COLLECTION_ID = process.env.EXPO_PUBLIC_APPWRITE_CONTACTS_COLLECTION_ID!;
-const USERS_COLLECTION_ID = process.env.EXPO_PUBLIC_APPWRITE_USERS_COLLECTION_ID!;
+const ContactScreen: React.FC = () => {
+  const [email, setEmail] = useState('');
+  const [loading, setLoading] = useState(false);
+  const hasLoadedRef = useRef(false);
 
-export default function ContactsScreen() {
-  const navigation = useNavigation();
-  const [contacts, setContacts] = useState<any[]>([]);
-  const [userId, setUserId] = useState('');
-  const [showModal, setShowModal] = useState(false);
-  const [emailInput, setEmailInput] = useState('');
+  const { user } = useAuthStore();
+  const { contactUsers, loadContacts, addContactByEmail, isLoadingContacts, error } = useContacts(user?.$id || '');
+  
+  const { searchResults, searching, searchWithDebounce } = useContactSearch({
+    currentUserId: user?.$id || '',
+    contactUsers,
+  });
 
-  useEffect(() => {
-    account.get().then((user) => {
-      setUserId(user.$id);
-      loadContacts(user.$id);
+  // Deduplicate contacts based on userId
+  const uniqueContacts = useMemo(() => {
+    const seen = new Set<string>();
+    return contactUsers.filter(contact => {
+      if (seen.has(contact.userId)) {
+        return false;
+      }
+      seen.add(contact.userId);
+      return true;
     });
+  }, [contactUsers]);
+
+  // Deduplicate search results based on userId
+  const uniqueSearchResults = useMemo(() => {
+    const seen = new Set<string>();
+    return searchResults.filter(result => {
+      if (seen.has(result.userId)) {
+        return false;
+      }
+      seen.add(result.userId);
+      return true;
+    });
+  }, [searchResults]);
+
+  // Load contacts on mount - only once per user
+  useEffect(() => {
+    if (user?.$id && !hasLoadedRef.current) {
+      console.log('🔄 Loading contacts for user:', user.$id);
+      hasLoadedRef.current = true;
+      loadContacts();
+    }
+  }, [user?.$id]); // Removed loadContacts from dependencies
+
+  // Reset the ref when user changes
+  useEffect(() => {
+    hasLoadedRef.current = false;
+  }, [user?.$id]);
+
+  // Search functionality with debouncing
+  useEffect(() => {
+    const cleanup = searchWithDebounce(email);
+    return cleanup;
+  }, [email, searchWithDebounce]);
+
+  // Event handlers
+  const handleAddContact = useCallback(async (targetEmail?: string) => {
+    const emailToAdd = (targetEmail ?? email).trim();
+    if (!emailToAdd || loading) return; // Prevent multiple clicks
+
+    setLoading(true);
+    try {
+      const error = await addContactByEmail(emailToAdd);
+      if (error) {
+        Alert.alert('Error', error);
+      } else {
+        Alert.alert('Success', 'Contact added successfully!');
+        setEmail('');
+        await loadContacts();
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Failed to add contact');
+    } finally {
+      setLoading(false);
+    }
+  }, [email, addContactByEmail, loadContacts, loading]);
+
+  const handleMessage = useCallback((contact: User) => {
+    Alert.alert('Message', `Start chat with ${contact.email}`);
   }, []);
 
-  const loadContacts = async (ownerId: string) => {
-    const res = await databases.listDocuments(DATABASE_ID, CONTACTS_COLLECTION_ID, [
-      `equal("ownerId", "${ownerId}")`
-    ]);
-    setContacts(res.documents);
-  };
-
-  const addContactByEmail = async () => {
-    if (!emailInput) return Alert.alert('Email is required');
-    try {
-      const res = await databases.listDocuments(DATABASE_ID, USERS_COLLECTION_ID, [
-        `equal("email", "${emailInput}")`
-      ]);
-
-      if (res.documents.length === 0) {
-        Alert.alert('User does not exist in app');
-        return;
-      }
-
-      const contactUser = res.documents[0];
-      await databases.createDocument(
-        DATABASE_ID,
-        CONTACTS_COLLECTION_ID,
-        ID.unique(),
-        {
-          ownerId: userId,
-          contactId: contactUser.$id,
-          name: contactUser.name || emailInput,
-        },
-        [
-          Permission.read(Role.user(userId)),
-          Permission.update(Role.user(userId)),
-          Permission.delete(Role.user(userId))
-        ]
-      );
-
-      loadContacts(userId);
-      setShowModal(false);
-      setEmailInput('');
-    } catch (err) {
-      console.error(err);
-      Alert.alert('Failed to add contact');
+  const handleEmailChange = useCallback((newEmail: string) => {
+    if (!loading) { // Only allow changes when not loading
+      setEmail(newEmail);
     }
-  };
+  }, [loading]);
+
+  // Early return if no user
+  if (!user?.$id) {
+    return (
+      <View className="flex-1 bg-gray-100 px-4 pt-4 justify-center items-center">
+        <Text className="text-lg text-gray-600">Please log in to view contacts</Text>
+      </View>
+    );
+  }
 
   return (
-    <View className="flex-1 bg-white p-4">
-      <View className="flex-row justify-between items-center mb-4">
-        <Text className="text-2xl font-bold">Contacts</Text>
-        <TouchableOpacity onPress={() => setShowModal(true)}>
-          <Ionicons name="add-circle" size={28} color="black" />
-        </TouchableOpacity>
-      </View>
+    <View className="flex-1 bg-gray-100 px-4 pt-4">
+      <Text className="text-2xl font-bold mb-4">My Contacts</Text>
 
-      <FlatList
-        data={contacts}
-        keyExtractor={(item) => item.$id}
-        renderItem={({ item }) => (
-          <View className="flex-row items-center justify-between p-4 border-b border-gray-300">
-            <Text className="text-lg">{item.name}</Text>
-            <View className="flex-row space-x-2">
-              <Button title="Chat" onPress={() => navigation.navigate('ChatScreen', {
-                receiverId: item.contactId,
-                receiverName: item.name,
-              })} />
-              <Button title="Call" onPress={() => {}} />
-              <Button title="Video" onPress={() => {}} />
-            </View>
-          </View>
-        )}
+      {/* Error Display */}
+      {error && (
+        <View className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+          <Text className="text-red-700 font-medium">Error:</Text>
+          <Text className="text-red-600">{error}</Text>
+          <Text 
+            className="text-red-500 underline mt-2"
+            onPress={() => loadContacts()}
+          >
+            Tap to retry
+          </Text>
+        </View>
+      )}
+
+      <SearchBar
+        email={email}
+        onEmailChange={handleEmailChange}
+        onAdd={() => handleAddContact()}
+        loading={loading}
       />
 
-      <Modal visible={showModal} animationType="slide" transparent>
-        <View className="flex-1 justify-center items-center bg-black bg-opacity-50">
-          <View className="bg-white p-6 rounded-xl w-80">
-            <Text className="text-lg font-semibold mb-4">Add Contact by Email</Text>
-            <TextInput
-              className="border p-2 rounded mb-4"
-              placeholder="Enter registered user email"
-              value={emailInput}
-              onChangeText={setEmailInput}
-              autoCapitalize="none"
-            />
-            <Button title="Add" onPress={addContactByEmail} />
-            <View className="mt-2" />
-            <Button title="Cancel" color="gray" onPress={() => setShowModal(false)} />
-          </View>
+      {isLoadingContacts ? (
+        <View className="flex-1 justify-center items-center">
+          <Text className="text-gray-600">Loading contacts...</Text>
         </View>
-      </Modal>
+      ) : email.trim().length > 0 ? (
+        <SearchResults
+          results={uniqueSearchResults}
+          searching={searching}
+          onAdd={handleAddContact}
+        />
+      ) : (
+        <ContactsTable
+          contacts={uniqueContacts}
+          onMessage={handleMessage}
+        />
+      )}
     </View>
   );
-}
+};
+
+export default ContactScreen;

@@ -35,5 +35,12 @@ export const getCurrentUser = async (): Promise<AppwriteUser> => {
 };
 
 export const signOut = async (): Promise<void> => {
-  await account.deleteSession('current');
+  console.log('🔐 Auth Service: Starting sign out...');
+  try {
+    await account.deleteSession('current');
+    console.log('🔐 Auth Service: Session deleted successfully');
+  } catch (error) {
+    console.error('🔐 Auth Service: Error during sign out:', error);
+    throw error;
+  }
 };

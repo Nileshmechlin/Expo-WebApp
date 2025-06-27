@@ -18,9 +18,14 @@ yarn-error.log*
 android/
 ios/
 
-# Environment variables
+# Environment variables - ALL environment files should be ignored
 .env
 .env.local
+.env.development
+.env.production
+.env.staging
+.env.test
+.env.*.local
 
 # Keystore and credentials (VERY IMPORTANT)
 *.jks

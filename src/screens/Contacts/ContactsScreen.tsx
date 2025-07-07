@@ -5,6 +5,9 @@ import { useContactSearch } from '../../hooks/useContactSearch';
 import { useAuthStore } from '../../state/authStore';
 import { User } from '../../types/contact';
 import { SearchBar, ContactsTable, SearchResults } from '../../components';
+import { useNavigation } from '@react-navigation/native';
+import { useSendbirdChat } from '@sendbird/uikit-react-native';
+import { createOrGet1on1Channel } from '../../utils/createOrGet1on1Channel';
 
 const ContactScreen: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -18,6 +21,9 @@ const ContactScreen: React.FC = () => {
     currentUserId: user?.$id || '',
     contactUsers,
   });
+
+  const navigation = useNavigation<any>();
+  const { sdk } = useSendbirdChat();
 
   // Deduplicate contacts based on userId
   const uniqueContacts = useMemo(() => {
@@ -85,9 +91,15 @@ const ContactScreen: React.FC = () => {
     }
   }, [email, addContactByEmail, loadContacts, loading]);
 
-  const handleMessage = useCallback((contact: User) => {
-    Alert.alert('Message', `Start chat with ${contact.email}`);
-  }, []);
+  const handleMessage = useCallback(async (contact: User) => {
+    try {
+      if (!sdk) throw new Error('Sendbird SDK not initialized');
+      const channel = await createOrGet1on1Channel(contact.userId, sdk);
+      navigation.navigate('GroupChannel', { channelUrl: channel.url });
+    } catch (error) {
+      Alert.alert('Error', 'Could not start chat.');
+    }
+  }, [sdk, navigation]);
 
   const handleEmailChange = useCallback((newEmail: string) => {
     if (!loading) { // Only allow changes when not loading

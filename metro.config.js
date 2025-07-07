@@ -1,6 +1,11 @@
+const path = require('path');
 const { getDefaultConfig } = require('expo/metro-config');
-const { withNativeWind } = require('nativewind/metro');
 
 const config = getDefaultConfig(__dirname);
 
-module.exports = withNativeWind(config, { input: './global.css' });
+config.resolver.extraNodeModules = {
+  ...config.resolver.extraNodeModules,
+  './assets/icon': path.resolve(__dirname, './emptyIconShim.js'),
+};
+
+module.exports = config;

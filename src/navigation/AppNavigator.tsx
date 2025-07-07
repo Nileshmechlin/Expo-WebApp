@@ -3,6 +3,7 @@ import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import ContactsScreen from '@/screens/Contacts/ContactsScreen';
 import Layout from '@/components/Layout';
+import GroupChannelScreen from '@/screens/Chat/GroupChannelScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -16,6 +17,7 @@ export const AppNavigator = () => {
           </Layout>
         )}
       </Stack.Screen>
+      <Stack.Screen name="GroupChannel" component={GroupChannelScreen} />
     </Stack.Navigator>
   );
 };
